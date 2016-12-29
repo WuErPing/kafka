@@ -50,6 +50,7 @@ class DefaultEventHandler[K,V](config: ProducerConfig,
 
   def handle(events: Seq[KeyedMessage[K,V]]) {
     val serializedData = serialize(events)
+    // 来一些统计
     serializedData.foreach {
       keyed =>
         val dataSize = keyed.message.payloadSize
@@ -60,6 +61,7 @@ class DefaultEventHandler[K,V](config: ProducerConfig,
     var remainingRetries = config.messageSendMaxRetries + 1
     val correlationIdStart = correlationId.get()
     debug("Handling %d events".format(events.size))
+    // 如果还有重试次数且请求不为空
     while (remainingRetries > 0 && outstandingProduceRequests.size > 0) {
       topicMetadataToRefresh ++= outstandingProduceRequests.map(_.topic)
       if (topicMetadataRefreshInterval >= 0 &&
@@ -69,6 +71,7 @@ class DefaultEventHandler[K,V](config: ProducerConfig,
         topicMetadataToRefresh.clear
         lastTopicMetadataRefreshTime = SystemTime.milliseconds
       }
+      // 发送数据，同时返回发送失败的数据下一次循环重新发送
       outstandingProduceRequests = dispatchSerializedData(outstandingProduceRequests)
       if (outstandingProduceRequests.size > 0) {
         info("Back off for %d ms before retrying send. Remaining retries = %d".format(config.retryBackoffMs, remainingRetries-1))
@@ -92,6 +95,7 @@ class DefaultEventHandler[K,V](config: ProducerConfig,
   }
 
   private def dispatchSerializedData(messages: Seq[KeyedMessage[K,Message]]): Seq[KeyedMessage[K, Message]] = {
+    // 将数据分区
     val partitionedDataOpt = partitionAndCollate(messages)
     partitionedDataOpt match {
       case Some(partitionedData) =>
@@ -101,6 +105,7 @@ class DefaultEventHandler[K,V](config: ProducerConfig,
             if (logger.isTraceEnabled)
               messagesPerBrokerMap.foreach(partitionAndEvent =>
                 trace("Handling event for Topic: %s, Broker: %d, Partitions: %s".format(partitionAndEvent._1, brokerid, partitionAndEvent._2)))
+            // 进一步处理消息，压缩
             val messageSetPerBroker = groupMessagesToSet(messagesPerBrokerMap)
 
             val failedTopicPartitions = send(brokerid, messageSetPerBroker)
@@ -124,7 +129,7 @@ class DefaultEventHandler[K,V](config: ProducerConfig,
     val serializedMessages = new ArrayBuffer[KeyedMessage[K,Message]](events.size)
     events.foreach{e =>
       try {
-        if(e.hasKey)
+        if(e.hasKey) // 缺省情况下， keyEncoder、encoder 同为 DefaultEncoder， toBytes 实际上没有额外操作
           serializedMessages += new KeyedMessage[K,Message](topic = e.topic, key = e.key, partKey = e.partKey, message = new Message(key = keyEncoder.toBytes(e.key), bytes = encoder.toBytes(e.message)))
         else
           serializedMessages += new KeyedMessage[K,Message](topic = e.topic, key = e.key, partKey = e.partKey, message = new Message(bytes = encoder.toBytes(e.message)))
@@ -143,16 +148,28 @@ class DefaultEventHandler[K,V](config: ProducerConfig,
     serializedMessages
   }
 
+  /**
+    * by Wu.Erping on 2016-12-29
+    * HashMap[leaderBrokerId, dataPerBroker:HashMap[TopicAndPartition, Seq[KeyedMessage[K,Message]]]]
+    *   dataPerBroker->HashMap[topicAndPartition, dataPerTopicPartition: ArrayBuffer[KeyedMessage[K,Message]]]
+    *     dataPerTopicPartition.append(message)
+    */
   def partitionAndCollate(messages: Seq[KeyedMessage[K,Message]]): Option[Map[Int, collection.mutable.Map[TopicAndPartition, Seq[KeyedMessage[K,Message]]]]] = {
+    // 每一个leaderBorker对应多个主题/分区
     val ret = new HashMap[Int, collection.mutable.Map[TopicAndPartition, Seq[KeyedMessage[K,Message]]]]
     try {
       for (message <- messages) {
+        // 获取主题对应的分区列表， Seq[PartitionAndLeader]
         val topicPartitionsList = getPartitionListForTopic(message)
+        // 利用消息的分区key将消息分配的一个具体分区
         val partitionIndex = getPartition(message.topic, message.partitionKey, topicPartitionsList)
+        // 拿到 case class PartitionAndLeader(topic: String, partitionId: Int, leaderBrokerIdOpt: Option[Int])
         val brokerPartition = topicPartitionsList(partitionIndex)
 
+        // 找出broker的leader, leader信息可能是过期的，错误的处理延迟到发送时
         // postpone the failure until the send operation, so that requests for other brokers are handled correctly
         val leaderBrokerId = brokerPartition.leaderBrokerIdOpt.getOrElse(-1)
+
 
         var dataPerBroker: HashMap[TopicAndPartition, Seq[KeyedMessage[K,Message]]] = null
         ret.get(leaderBrokerId) match {
