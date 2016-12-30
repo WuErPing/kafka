@@ -107,7 +107,7 @@ class DefaultEventHandler[K,V](config: ProducerConfig,
                 trace("Handling event for Topic: %s, Broker: %d, Partitions: %s".format(partitionAndEvent._1, brokerid, partitionAndEvent._2)))
             // 进一步处理消息，压缩
             val messageSetPerBroker = groupMessagesToSet(messagesPerBrokerMap)
-
+            // 发送
             val failedTopicPartitions = send(brokerid, messageSetPerBroker)
             failedTopicPartitions.foreach(topicPartition => {
               messagesPerBrokerMap.get(topicPartition) match {
