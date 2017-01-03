@@ -36,11 +36,12 @@ object ByteBufferMessageSet {
       buffer.rewind()
       buffer
     } else {
+
       val byteArrayStream = new ByteArrayOutputStream(MessageSet.messageSetSize(messages))
       val output = new DataOutputStream(CompressionFactory(compressionCodec, byteArrayStream))
       var offset = -1L
       try {
-        for(message <- messages) {
+        for(message <- messages) { // 逐条消息写入 byteArrayStream
           offset = offsetCounter.getAndIncrement
           output.writeLong(offset)
           output.writeInt(message.size)
@@ -50,9 +51,9 @@ object ByteBufferMessageSet {
         output.close()
       }
       val bytes = byteArrayStream.toByteArray
-      val message = new Message(bytes, compressionCodec)
+      val message = new Message(bytes, compressionCodec) // byteArrayStream做为大消息包发出
       val buffer = ByteBuffer.allocate(message.size + MessageSet.LogOverhead)
-      writeMessage(buffer, message, offset)
+      writeMessage(buffer, message, offset) // 这里是与非压缩最大的不同，这里用的是大包，broker是判断的大包还是小包？？
       buffer.rewind()
       buffer
     }

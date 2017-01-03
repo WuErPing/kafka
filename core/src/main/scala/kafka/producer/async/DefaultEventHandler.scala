@@ -97,6 +97,7 @@ class DefaultEventHandler[K,V](config: ProducerConfig,
   private def dispatchSerializedData(messages: Seq[KeyedMessage[K,Message]]): Seq[KeyedMessage[K, Message]] = {
     // 将数据分区
     val partitionedDataOpt = partitionAndCollate(messages)
+    // Option[Map[Int, collection.mutable.Map[TopicAndPartition, Seq[KeyedMessage[K,Message]]]]]
     partitionedDataOpt match {
       case Some(partitionedData) =>
         val failedProduceRequests = new ArrayBuffer[KeyedMessage[K,Message]]
@@ -105,7 +106,7 @@ class DefaultEventHandler[K,V](config: ProducerConfig,
             if (logger.isTraceEnabled)
               messagesPerBrokerMap.foreach(partitionAndEvent =>
                 trace("Handling event for Topic: %s, Broker: %d, Partitions: %s".format(partitionAndEvent._1, brokerid, partitionAndEvent._2)))
-            // 进一步处理消息，压缩
+            // 进一步处理消息，Map[TopicAndPartition, Seq[KeyedMessage[K,Message]]]]
             val messageSetPerBroker = groupMessagesToSet(messagesPerBrokerMap)
             // 发送
             val failedTopicPartitions = send(brokerid, messageSetPerBroker)
