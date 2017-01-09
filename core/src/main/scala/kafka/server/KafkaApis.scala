@@ -432,7 +432,7 @@ class KafkaApis(val requestChannel: RequestChannel,
         case (topicPartition, buffer) => (topicPartition, new ByteBufferMessageSet(buffer))
       }
 
-      // call the replica manager to append messages to the replicas
+      // call the replica manager to append messages to the replicas, 这里的副本包含leader自身的
       replicaManager.appendMessages(
         produceRequest.timeout.toLong,
         produceRequest.acks,

@@ -33,6 +33,8 @@ trait OffsetMap {
   def latestOffset: Long
 }
 
+// 跟 [SkimpyStash: RAM Space Skimpy Key-Value Store on Flash - Microsoft Research](https://www.microsoft.com/en-us/research/publication/skimpystash-ram-space-skimpy-key-value-store-on-flash/)
+// 有关吗？
 /**
  * An hash table used for deduplicating the log. This hash table uses a cryptographicly secure hash of the key as a proxy for the key
  * for comparisons and to save space on object overhead. Collisions are resolved by probing. This hash table does not support deletes.
