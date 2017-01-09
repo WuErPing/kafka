@@ -32,7 +32,7 @@ object ByteBufferMessageSet {
     } else if(compressionCodec == NoCompressionCodec) {
       val buffer = ByteBuffer.allocate(MessageSet.messageSetSize(messages))
       for(message <- messages)
-        writeMessage(buffer, message, offsetCounter.getAndIncrement)
+        writeMessage(buffer, message, offsetCounter.getAndIncrement) // 非压缩模式，单条消息仍为单条消息
       buffer.rewind()
       buffer
     } else {

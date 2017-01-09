@@ -74,8 +74,8 @@ class Producer[K,V](val config: ProducerConfig,
         throw new ProducerClosedException
       recordStats(messages)
       sync match {
-        case true => eventHandler.handle(messages)
-        case false => asyncSend(messages)
+        case true => eventHandler.handle(messages) // 同步消息， 直接交给 kafka.producer.async.DefaultEventHandler.handle
+        case false => asyncSend(messages) // 异步消息， 经过队列，最终交给 kafka.producer.async.DefaultEventHandler.handle
       }
     }
   }
